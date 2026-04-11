@@ -49,7 +49,12 @@ def classify_name(request):
             )
         
         #Processing
-        is_confident = probability >= 0.7 and count >= 100
+        is_confident = (
+            probability is not None and 
+            count is not None and
+            probability >= 0.7 and 
+            count >= 100
+        )
         processed_data = {
             "name": name,
                 "gender": gender,
