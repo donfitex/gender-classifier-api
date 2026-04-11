@@ -1,1 +1,1 @@
-web: gunicorn gender_classify_api.wsgi
+web: gunicorn gender_classify_api.wsgi --bind 0.0.0.0:$PORT
