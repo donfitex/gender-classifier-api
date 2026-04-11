@@ -9,7 +9,7 @@ from rest_framework import status
 logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
-def Classify_name(request):
+def classify_name(request):
     name = request.GET.get('name')
 
     #Input Validation
