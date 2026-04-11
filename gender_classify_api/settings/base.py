@@ -39,6 +39,12 @@ MIDDLEWARE = [
 
 # -------- CORS --------
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_HEADERS = ['*']
+CORS_ALLOW_METHODS = [
+    'GET',
+    'OPTIONS',
+    'POST',
+]
 
 # -------- URLs & WSGI --------
 ROOT_URLCONF = 'gender_classify_api.urls'
