@@ -1,1 +1,1 @@
-web: gunicorn config.wsgi
+web: gunicorn gender_classify_api.wsgi
