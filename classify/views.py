@@ -140,3 +140,35 @@ def create_profile(request):
         gender_res = requests.get(f"https://api.genderize.io?name={name}", timeout=2).json()
         age_res = requests.get(f"https://api.agify.io?name={name}", timeout=2).json()
         nation_res = requests.get(f"https://api.nationalize.io?name={name}", timeout=2).json()
+
+    #Data extraction, validation, and processing logic
+    # Gender
+    gender = gender_res.get("gender")
+    probability = gender_res.get("probability")
+    count = gender_res.get("count")
+
+    if gender is None or count == 0:
+        return Response(
+            {"status": "error", "message": "No gender data available"},
+            status=404
+        )
+
+    # Age
+    age = age_res.get("age")
+    if age is None:
+        return Response(
+            {"status": "error", "message": "No age data available"},
+            status=404
+        )
+
+    age_group = get_age_group(age)
+
+    # Country
+    countries = nation_res.get("country", [])
+    country_id, country_probability = get_top_country(countries)
+
+    if not country_id:
+        return Response(
+            {"status": "error", "message": "No country data available"},
+            status=404
+        )
