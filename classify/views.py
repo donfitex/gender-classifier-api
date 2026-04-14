@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from .models import Profile
 
 #logger setup
 logger = logging.getLogger(__name__)
@@ -123,5 +124,16 @@ def create_profile(request):
         )
 
     name = name.strip().lower()
+    
+    # Add idempotency to check if profile already exists
+    existing_profile = Profile.objects.filter(name=name).first()
+    if existing_profile:
+        return Response(
+            {"status": "success", "message": "Profile already exists", "data": serialize_profile(existing_profile)},
+            status=200
+        )
 
     return Response({"message": "Step 1 working"})
+
+
+    
