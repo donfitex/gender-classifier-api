@@ -86,7 +86,7 @@ def classify_name(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     
-
+# Additional helper functions for processing data
 def get_age_group(age):
     if age <= 12:
         return "child"
@@ -104,3 +104,24 @@ def get_top_country(countries):
     
     top_country = max(countries, key=lambda x: x['probability'])
     return top_country['country_id'], top_country['probability']
+
+# Endpoint to create a profile with validation (not fully implemented yet)
+@api_view(['POST'])
+def create_profile(request):
+    name = request.data.get("name")
+
+    if name is None or str(name).strip() == "":
+        return Response(
+            {"status": "error", "message": "Name is required"},
+            status=400
+        )
+
+    if not isinstance(name, str):
+        return Response(
+            {"status": "error", "message": "Name must be a string"},
+            status=422
+        )
+
+    name = name.strip().lower()
+
+    return Response({"message": "Step 1 working"})
