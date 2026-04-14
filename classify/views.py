@@ -124,7 +124,7 @@ def create_profile(request):
         )
 
     name = name.strip().lower()
-    
+
     # Add idempotency to check if profile already exists
     existing_profile = Profile.objects.filter(name=name).first()
     if existing_profile:
@@ -135,5 +135,8 @@ def create_profile(request):
 
     return Response({"message": "Step 1 working"})
 
-
-    
+    #Integrate external APIs
+    try:
+        gender_res = requests.get(f"https://api.genderize.io?name={name}", timeout=2).json()
+        age_res = requests.get(f"https://api.agify.io?name={name}", timeout=2).json()
+        nation_res = requests.get(f"https://api.nationalize.io?name={name}", timeout=2).json()
