@@ -85,3 +85,22 @@ def classify_name(request):
             {"status": "error", "message": "Internal server error"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+    
+
+def get_age_group(age):
+    if age <= 12:
+        return "child"
+    elif 13 <= age <= 19:
+        return "teenager"
+    elif 20 <= age <= 59:
+        return "adult"
+    else:
+        return "senior"
+    
+
+def get_top_country(countries):
+    if not countries:
+        return None, None
+    
+    top_country = max(countries, key=lambda x: x['probability'])
+    return top_country['country_id'], top_country['probability']
