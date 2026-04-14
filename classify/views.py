@@ -172,3 +172,15 @@ def create_profile(request):
             {"status": "error", "message": "No country data available"},
             status=404
         )
+    
+    # Save to database
+    profile = Profile.objects.create(
+    name=name,
+    gender=gender,
+    gender_probability=probability,
+    sample_size=count,
+    age=age,
+    age_group=age_group,
+    country_id=country_id,
+    country_probability=country_probability
+)
