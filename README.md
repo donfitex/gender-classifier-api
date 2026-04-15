@@ -70,14 +70,17 @@ Request:
 
 ## 📌 Features
 
-- External API integration (Genderize)
-- Clean data processing
-- Confidence scoring logic
-- Input validation
-- Structured error handling
-- Logging for monitoring
-- Timeout handling for reliability
-- CORS enabled for public access
+Multi-API integration:
+Gender prediction
+Age estimation
+Nationality prediction
+Data processing & transformation
+Idempotent profile creation
+Input validation (400 / 422)
+Error handling (404 / 500 / 502)
+UTC timestamps (ISO 8601)
+CORS enabled (Access-Control-Allow-Origin: *)
+Logging for debugging and monitoring
 
 ---
 
@@ -148,6 +151,7 @@ Python
 Django
 Django REST Framework
 Requests
+SQLite (default)
 
 ## ⚙️ Setup Instructions
 
@@ -171,6 +175,13 @@ Deployed on Railway.
 API response time under 500ms (excluding external API latency)
 External API calls use timeout to prevent hanging
 Logging enabled for monitoring and debugging
+
+---
+
+📌 Notes
+• External APIs are used for data enrichment
+• User-provided fields (like age) are ignored
+• Duplicate names return existing records
 
 ---
 
