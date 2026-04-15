@@ -141,69 +141,74 @@ def create_profile(request):
         age_res = requests.get(f"https://api.agify.io?name={name}", timeout=2).json()
         nation_res = requests.get(f"https://api.nationalize.io?name={name}", timeout=2).json()
 
-    #Data extraction, validation, and processing logic
-    # Gender
-    gender = gender_res.get("gender")
-    probability = gender_res.get("probability")
-    count = gender_res.get("count")
+        #Data extraction, validation, and processing logic
+        # Gender
+        gender = gender_res.get("gender")
+        probability = gender_res.get("probability")
+        count = gender_res.get("count")
 
-    if gender is None or count == 0:
-        return Response(
-            {"status": "error", "message": "No gender data available"},
-            status=404
+        if gender is None or count == 0:
+            return Response(
+                {"status": "error", "message": "No gender data available"},
+                status=404
+            )
+
+        # Age
+        age = age_res.get("age")
+        if age is None:
+            return Response(
+                {"status": "error", "message": "No age data available"},
+                status=404
+            )
+
+        age_group = get_age_group(age)
+
+        # Country
+        countries = nation_res.get("country", [])
+        country_id, country_probability = get_top_country(countries)
+
+        if not country_id:
+            return Response(
+                {"status": "error", "message": "No country data available"},
+                status=404
+            )
+        
+        # Save to database
+        profile = Profile.objects.create(
+            name=name,
+            gender=gender,
+            gender_probability=probability,
+            sample_size=count,
+            age=age,
+            age_group=age_group,
+            country_id=country_id,
+            country_probability=country_probability
         )
+        
+        # Serialize profile for response and return
+        def serialize_profile(profile):
+            return {
+                "id": str(profile.id),
+                "name": profile.name,
+                "gender": profile.gender,
+                "gender_probability": profile.gender_probability,
+                "sample_size": profile.sample_size,
+                "age": profile.age,
+                "age_group": profile.age_group,
+                "country_id": profile.country_id,
+                "country_probability": profile.country_probability,
+                "created_at": profile.created_at.isoformat().replace("+00:00", "Z"),
+            }
 
-    # Age
-    age = age_res.get("age")
-    if age is None:
-        return Response(
-            {"status": "error", "message": "No age data available"},
-            status=404
+            return Response(
+                {
+                    "status": "success",
+                    "data": serialize_profile(profile)
+                },
+                status=201
         )
-
-    age_group = get_age_group(age)
-
-    # Country
-    countries = nation_res.get("country", [])
-    country_id, country_probability = get_top_country(countries)
-
-    if not country_id:
+    except requests.exceptions.RequestException:
         return Response(
-            {"status": "error", "message": "No country data available"},
-            status=404
+            {"status": "error", "message": "External API error"},
+            status=502
         )
-    
-    # Save to database
-    profile = Profile.objects.create(
-    name=name,
-    gender=gender,
-    gender_probability=probability,
-    sample_size=count,
-    age=age,
-    age_group=age_group,
-    country_id=country_id,
-    country_probability=country_probability
-)
-    
-    # Serialize profile for response and return
-    def serialize_profile(profile):
-        return {
-            "id": str(profile.id),
-            "name": profile.name,
-            "gender": profile.gender,
-            "gender_probability": profile.gender_probability,
-            "sample_size": profile.sample_size,
-            "age": profile.age,
-            "age_group": profile.age_group,
-            "country_id": profile.country_id,
-            "country_probability": profile.country_probability,
-            "created_at": profile.created_at.isoformat().replace("+00:00", "Z"),
-        }
-
-        return Response(
-    {
-        "status": "success",
-        "data": serialize_profile(profile)
-    },
-    status=201
-)
