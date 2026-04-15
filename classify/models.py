@@ -1,3 +1,4 @@
+from uuid import uuid7
 import uuid
 from django.db import models
 
