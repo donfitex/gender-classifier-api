@@ -181,7 +181,7 @@ def create_profile(request):
 
         if gender is None or count == 0:
             return Response(
-                {"status": "error", "message": "No gender data available"},
+                {"status": "error", "message": "Genderize returned an invalid response"},
                 status=404
             )
 
@@ -189,7 +189,7 @@ def create_profile(request):
         age = age_data.get("age")
         if age is None:
             return Response(
-                {"status": "error", "message": "No age data available"},
+                {"status": "error", "message": "Agify returned an invalid response"},
                 status=404
             )
 
@@ -201,7 +201,7 @@ def create_profile(request):
 
         if not country_id:
             return Response(
-                {"status": "error", "message": "No country data available"},
+                {"status": "error", "message": "Nationalize returned an invalid response"},
                 status=404
             )
         
@@ -245,4 +245,68 @@ def create_profile(request):
         return Response(
             {"status": "error", "message": "Internal server error"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# Endpoint to retrieve profile by ID with error handling
+@api_view(['GET'])
+def get_profile(request, id):
+    try:
+        profile = Profile.objects.get(id=id)
+        return Response({
+            "status": "success",
+            "data": serialize_profile(profile)
+        })
+    except Profile.DoesNotExist:
+        return Response(
+            {"status": "error", "message": "Profile not found"},
+            status=404
+        )
+    
+# Endpoint to list profiles with filtering and pagination
+@api_view(['GET'])
+def list_profiles(request):
+    profiles = Profile.objects.all()
+
+    gender = request.GET.get('gender')
+    country_id = request.GET.get('country_id')
+    age_group = request.GET.get('age_group')
+
+    if gender:
+        profiles = profiles.filter(gender__iexact=gender)
+
+    if country_id:
+        profiles = profiles.filter(country_id__iexact=country_id)
+
+    if age_group:
+        profiles = profiles.filter(age_group__iexact=age_group)
+
+    data = [
+        {
+            "id": str(p.id),
+            "name": p.name,
+            "gender": p.gender,
+            "age": p.age,
+            "age_group": p.age_group,
+            "country_id": p.country_id,
+        }
+        for p in profiles
+    ]
+
+    return Response({
+        "status": "success",
+        "count": len(data),
+        "data": data
+    })
+
+# Endpoint to delete profile by ID with error handling
+@api_view(['DELETE'])
+def delete_profile(request, id):
+    try:
+        profile = Profile.objects.get(id=id)
+        profile.delete()
+        return Response(status=204)
+    except Profile.DoesNotExist:
+        return Response(
+            {"status": "error", "message": "Profile not found"},
+            status=404
         )
