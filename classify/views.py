@@ -106,10 +106,11 @@ def get_age_group(age):
     
 
 def get_top_country(countries):
-    if not countries:
+    valid = [c for c in countries if 'country_id' in c and 'probability' in c]
+    if not valid:
         return None, None
     
-    top_country = max(countries, key=lambda x: x['probability'])
+    top_country = max(valid, key=lambda x: x['probability'])
     return top_country['country_id'], top_country['probability']
 
 
@@ -159,15 +160,24 @@ def create_profile(request):
 
     #Integrate external APIs
     try:
-        gender_res = requests.get(f"https://api.genderize.io?name={name}", timeout=2).json()
-        age_res = requests.get(f"https://api.agify.io?name={name}", timeout=2).json()
-        nation_res = requests.get(f"https://api.nationalize.io?name={name}", timeout=2).json()
+        gender_res = requests.get(f"https://api.genderize.io?name={name}", timeout=2)
+        gender_res.raise_for_status()
+        gender_data = gender_res.json()
+
+        age_res = requests.get(f"https://api.agify.io?name={name}", timeout=2)
+        age_res.raise_for_status()
+        age_data = age_res.json()
+
+        nation_res = requests.get(f"https://api.nationalize.io?name={name}", timeout=2)
+        nation_res.raise_for_status()
+        nation_data = nation_res.json()
+
 
         #Data extraction, validation, and processing logic
         # Gender
-        gender = gender_res.get("gender")
-        probability = gender_res.get("probability")
-        count = gender_res.get("count")
+        gender = gender_data.get("gender")
+        probability = gender_data.get("probability")
+        count = gender_data.get("count")
 
         if gender is None or count == 0:
             return Response(
@@ -176,7 +186,7 @@ def create_profile(request):
             )
 
         # Age
-        age = age_res.get("age")
+        age = age_data.get("age")
         if age is None:
             return Response(
                 {"status": "error", "message": "No age data available"},
@@ -186,7 +196,7 @@ def create_profile(request):
         age_group = get_age_group(age)
 
         # Country
-        countries = nation_res.get("country", [])
+        countries = nation_data.get("country", [])
         country_id, country_probability = get_top_country(countries)
 
         if not country_id:
