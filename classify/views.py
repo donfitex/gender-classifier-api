@@ -310,3 +310,10 @@ def delete_profile(request, id):
             {"status": "error", "message": "Profile not found"},
             status=404
         )
+
+@api_view(['GET', 'POST'])
+def profiles(request):
+    if request.method == 'GET':
+        return list_profiles(request)
+    elif request.method == 'POST':
+        return create_profile(request)
