@@ -10,13 +10,61 @@ Base URL:
 
 <https://gender-classifier-api-production.up.railway.app/>
 
-Endpoint:
+## 📌 Endpoints
+
+### 1. GET /api/classify
+
+Classifies gender using external API.
 
 GET /api/classify/?name={name}
 
-Example:
+#### Example
 
 <https://gender-classifier-api-production.up.railway.app/api/classify/?name=Raphael>
+
+### Response
+
+<```json>
+{
+  "status": "success",
+  "data": {
+    "name": "raphael",
+    "gender": "male",
+    "probability": 0.99,
+    "sample_size": 1234,
+    "is_confident": true,
+    "processed_at": "2026-04-01T12:00:00Z"
+  }
+}
+
+## 2. POST /api/profiles
+
+Create Profile Using External API
+
+Request:
+{
+  "name": "ella"
+}
+
+### Response Example
+
+<```json>
+{
+    "status": "success",
+    "message": "Profile already exists",
+    "data": {
+        "id": "019d9087-2ce0-7102-a2aa-5241ce898b88",
+        "name": "ella",
+        "gender": "female",
+        "gender_probability": 0.99,
+        "sample_size": 97517,
+        "age": 53,
+        "age_group": "adult",
+        "country_id": "CM",
+        "country_probability": 0.09677289106552395,
+        "created_at": "2026-04-15T09:44:31.201006Z"
+    }
+}
 
 ---
 
