@@ -74,14 +74,20 @@ def classify_name(request):
         )
 
     except requests.exceptions.Timeout:
-        logger.error("Genderize API timeout")
+        logger.error("External API timeout")
         return Response(
             {"status": "error", "message": "External API timeout"},
             status=status.HTTP_502_BAD_GATEWAY
-        )
-    
-    except requests.exceptions.ReadTimeout as e:
+    )
+
+    except requests.exceptions.RequestException as e:
         logger.error(f"External API error: {str(e)}")
+        return Response(
+            {"status": "error", "message": "External API error"},
+            status=status.HTTP_502_BAD_GATEWAY
+        )
+    except Exception as e:
+        logger.error(f"Internal server error: {str(e)}")
         return Response(
             {"status": "error", "message": "Internal server error"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -106,11 +112,28 @@ def get_top_country(countries):
     top_country = max(countries, key=lambda x: x['probability'])
     return top_country['country_id'], top_country['probability']
 
-# Endpoint to create a profile with validation (not fully implemented yet)
+
+# Serialize profile for response and return
+def serialize_profile(profile):
+    return {
+        "id": str(profile.id),
+        "name": profile.name,
+        "gender": profile.gender,
+        "gender_probability": profile.gender_probability,
+        "sample_size": profile.sample_size,
+        "age": profile.age,
+        "age_group": profile.age_group,
+        "country_id": profile.country_id,
+        "country_probability": profile.country_probability,
+        "created_at": profile.created_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
 @api_view(['POST'])
 def create_profile(request):
     name = request.data.get("name")
 
+    # Endpoint to create a profile with validation
     if name is None or str(name).strip() == "":
         return Response(
             {"status": "error", "message": "Name is required"},
@@ -133,7 +156,6 @@ def create_profile(request):
             status=200
         )
 
-    return Response({"message": "Step 1 working"})
 
     #Integrate external APIs
     try:
@@ -185,32 +207,32 @@ def create_profile(request):
             country_probability=country_probability
         )
         
-        # Serialize profile for response and return
-        def serialize_profile(profile):
-            return {
-                "id": str(profile.id),
-                "name": profile.name,
-                "gender": profile.gender,
-                "gender_probability": profile.gender_probability,
-                "sample_size": profile.sample_size,
-                "age": profile.age,
-                "age_group": profile.age_group,
-                "country_id": profile.country_id,
-                "country_probability": profile.country_probability,
-                "created_at": profile.created_at.isoformat().replace("+00:00", "Z"),
-            }
-
-            return Response(
-                {
-                    "status": "success",
-                    "data": serialize_profile(profile)
-                },
-                status=201
+        return Response(
+            {
+                "status": "success",
+                "data": serialize_profile(profile)
+            },
+            status=201
         )
     
     # Handle external API errors gracefully
-    except requests.exceptions.RequestException:
+    except requests.exceptions.Timeout:
+        logger.error("External API timeout")
+        return Response(
+            {"status": "error", "message": "External API timeout"},
+            status=status.HTTP_502_BAD_GATEWAY
+    )
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"External API error: {str(e)}")
         return Response(
             {"status": "error", "message": "External API error"},
-            status=502
+            status=status.HTTP_502_BAD_GATEWAY
+        )
+
+    except Exception as e:
+        logger.error(f"Internal server error: {str(e)}")
+        return Response(
+            {"status": "error", "message": "Internal server error"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
