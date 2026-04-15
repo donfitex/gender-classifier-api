@@ -207,6 +207,8 @@ def create_profile(request):
                 },
                 status=201
         )
+    
+    # Handle external API errors gracefully
     except requests.exceptions.RequestException:
         return Response(
             {"status": "error", "message": "External API error"},
