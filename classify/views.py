@@ -92,8 +92,12 @@ def classify_name(request):
             {"status": "error", "message": "Internal server error"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    
-# Additional helper functions for processing data
+
+
+# =========================
+# HELPERS
+# =========================
+
 def get_age_group(age):
     if age <= 12:
         return "child"
@@ -101,20 +105,21 @@ def get_age_group(age):
         return "teenager"
     elif 20 <= age <= 59:
         return "adult"
-    else:
-        return "senior"
-    
+    return "senior"
+
 
 def get_top_country(countries):
-    valid = [c for c in countries if 'country_id' in c and 'probability' in c]
+    if not countries:
+        return None, None
+
+    valid = [c for c in countries if "country_id" in c and "probability" in c]
     if not valid:
         return None, None
-    
-    top_country = max(valid, key=lambda x: x['probability'])
-    return top_country['country_id'], top_country['probability']
+
+    top = max(valid, key=lambda x: x["probability"])
+    return top["country_id"], top["probability"]
 
 
-# Serialize profile for response and return
 def serialize_profile(profile):
     return {
         "id": str(profile.id),
@@ -130,190 +135,190 @@ def serialize_profile(profile):
     }
 
 
-@api_view(['POST'])
-def create_profile(request):
-    name = request.data.get("name")
-
-    # Endpoint to create a profile with validation
-    if name is None or str(name).strip() == "":
-        return Response(
-            {"status": "error", "message": "Name is required"},
-            status=400
-        )
-
-    if not isinstance(name, str):
-        return Response(
-            {"status": "error", "message": "Name must be a string"},
-            status=422
-        )
-
-    name = name.strip().lower()
-
-    # Add idempotency to check if profile already exists
-    existing_profile = Profile.objects.filter(name=name).first()
-    if existing_profile:
-        return Response(
-            {"status": "success", "message": "Profile already exists", "data": serialize_profile(existing_profile)},
-            status=200
-        )
-
-
-    #Integrate external APIs
+def external_get(url, label):
     try:
-        gender_res = requests.get(f"https://api.genderize.io?name={name}", timeout=2)
-        gender_res.raise_for_status()
-        gender_data = gender_res.json()
-
-        age_res = requests.get(f"https://api.agify.io?name={name}", timeout=2)
-        age_res.raise_for_status()
-        age_data = age_res.json()
-
-        nation_res = requests.get(f"https://api.nationalize.io?name={name}", timeout=2)
-        nation_res.raise_for_status()
-        nation_data = nation_res.json()
-
-
-        #Data extraction, validation, and processing logic
-        # Gender
-        gender = gender_data.get("gender")
-        probability = gender_data.get("probability")
-        count = gender_data.get("count")
-
-        if gender is None or count == 0:
-            return Response(
-                {"status": "error", "message": "Genderize returned an invalid response"},
-                status=404
-            )
-
-        # Age
-        age = age_data.get("age")
-        if age is None:
-            return Response(
-                {"status": "error", "message": "Agify returned an invalid response"},
-                status=404
-            )
-
-        age_group = get_age_group(age)
-
-        # Country
-        countries = nation_data.get("country", [])
-        country_id, country_probability = get_top_country(countries)
-
-        if not country_id:
-            return Response(
-                {"status": "error", "message": "Nationalize returned an invalid response"},
-                status=404
-            )
-        
-        # Save to database
-        profile = Profile.objects.create(
-            name=name,
-            gender=gender,
-            gender_probability=probability,
-            sample_size=count,
-            age=age,
-            age_group=age_group,
-            country_id=country_id,
-            country_probability=country_probability
-        )
-        
-        return Response(
-            {
-                "status": "success",
-                "data": serialize_profile(profile)
-            },
-            status=201
-        )
-    
-    # Handle external API errors gracefully
+        res = requests.get(url, timeout=3)
+        res.raise_for_status()
+        return res.json()
     except requests.exceptions.Timeout:
-        logger.error("External API timeout")
-        return Response(
-            {"status": "error", "message": "External API timeout"},
-            status=status.HTTP_502_BAD_GATEWAY
-    )
+        raise Exception(f"{label} timeout")
+    except requests.exceptions.RequestException:
+        raise Exception(f"{label} error")
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"External API error: {str(e)}")
-        return Response(
-            {"status": "error", "message": "External API error"},
-            status=status.HTTP_502_BAD_GATEWAY
-        )
-
-    except Exception as e:
-        logger.error(f"Internal server error: {str(e)}")
-        return Response(
-            {"status": "error", "message": "Internal server error"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-# Endpoint to retrieve profile by ID with error handling
-@api_view(['GET'])
-def get_profile(request, id):
-    try:
-        profile = Profile.objects.get(id=id)
-        return Response({
-            "status": "success",
-            "data": serialize_profile(profile)
-        })
-    except Profile.DoesNotExist:
-        return Response(
-            {"status": "error", "message": "Profile not found"},
-            status=404
-        )
-    
-# Endpoint to list profiles with filtering and pagination
-@api_view(['GET'])
-def list_profiles(request):
-    profiles = Profile.objects.all()
-
-    gender = request.GET.get('gender')
-    country_id = request.GET.get('country_id')
-    age_group = request.GET.get('age_group')
-
-    if gender:
-        profiles = profiles.filter(gender__iexact=gender)
-
-    if country_id:
-        profiles = profiles.filter(country_id__iexact=country_id)
-
-    if age_group:
-        profiles = profiles.filter(age_group__iexact=age_group)
-
-    data = [
-        {
-            "id": str(p.id),
-            "name": p.name,
-            "gender": p.gender,
-            "age": p.age,
-            "age_group": p.age_group,
-            "country_id": p.country_id,
-        }
-        for p in profiles
-    ]
-
-    return Response({
-        "status": "success",
-        "count": len(data),
-        "data": data
-    })
-
-# Endpoint to delete profile by ID with error handling
-@api_view(['DELETE'])
-def delete_profile(request, id):
-    try:
-        profile = Profile.objects.get(id=id)
-        profile.delete()
-        return Response(status=204)
-    except Profile.DoesNotExist:
-        return Response(
-            {"status": "error", "message": "Profile not found"},
-            status=404
-        )
 
 @api_view(['GET', 'POST'])
 def profiles(request):
+    
+    # =========================
+    # GET → List Profiles
+    # =========================
     if request.method == 'GET':
-        return list_profiles(request)
+        profiles = Profile.objects.all()
+
+        gender = request.GET.get('gender')
+        country_id = request.GET.get('country_id')
+        age_group = request.GET.get('age_group')
+
+        if gender:
+            profiles = profiles.filter(gender__iexact=gender)
+
+        if country_id:
+            profiles = profiles.filter(country_id__iexact=country_id)
+
+        if age_group:
+            profiles = profiles.filter(age_group__iexact=age_group)
+
+        data = [
+            {
+                "id": str(p.id),
+                "name": p.name,
+                "gender": p.gender,
+                "age": p.age,
+                "age_group": p.age_group,
+                "country_id": p.country_id,
+            }
+            for p in profiles
+        ]
+
+        return Response({
+            "status": "success",
+            "count": len(data),
+            "data": data
+        })
+
+    # =========================
+    # POST → Create Profile
+    # =========================
     elif request.method == 'POST':
-        return create_profile(request)
+        name = request.data.get("name")
+
+        # Validation
+        if name is None or str(name).strip() == "":
+            return Response(
+                {"status": "error", "message": "Name is required"},
+                status=400
+            )
+
+        if not isinstance(name, str):
+            return Response(
+                {"status": "error", "message": "Name must be a string"},
+                status=422
+            )
+
+        name = name.strip().lower()
+
+        # Idempotency
+        existing_profile = Profile.objects.filter(name=name).first()
+        if existing_profile:
+            return Response(
+                {
+                    "status": "success",
+                    "message": "Profile already exists",
+                    "data": serialize_profile(existing_profile)
+                },
+                status=200
+            )
+
+        # External APIs
+        try:
+            gender_res = requests.get(f"https://api.genderize.io?name={name}", timeout=2)
+            gender_res.raise_for_status()
+            gender_data = gender_res.json()
+
+            age_res = requests.get(f"https://api.agify.io?name={name}", timeout=2)
+            age_res.raise_for_status()
+            age_data = age_res.json()
+
+            nation_res = requests.get(f"https://api.nationalize.io?name={name}", timeout=2)
+            nation_res.raise_for_status()
+            nation_data = nation_res.json()
+
+            # Gender
+            gender = gender_data.get("gender")
+            probability = gender_data.get("probability")
+            count = gender_data.get("count")
+
+            if gender is None or count == 0:
+                return Response(
+                    {"status": "error", "message": "Genderize returned an invalid response"},
+                    status=502
+                )
+
+            # Age
+            age = age_data.get("age")
+            if age is None:
+                return Response(
+                    {"status": "error", "message": "Agify returned an invalid response"},
+                    status=502
+                )
+
+            age_group = get_age_group(age)
+
+            # Country
+            countries = nation_data.get("country", [])
+            country_id, country_probability = get_top_country(countries)
+
+            if not country_id:
+                return Response(
+                    {"status": "error", "message": "Nationalize returned an invalid response"},
+                    status=502
+                )
+
+            # Save
+            profile = Profile.objects.create(
+                name=name,
+                gender=gender,
+                gender_probability=probability,
+                sample_size=count,
+                age=age,
+                age_group=age_group,
+                country_id=country_id,
+                country_probability=country_probability
+            )
+
+            return Response(
+                {
+                    "status": "success",
+                    "data": serialize_profile(profile)
+                },
+                status=201
+            )
+
+        except requests.exceptions.Timeout:
+            return Response(
+                {"status": "error", "message": "External API timeout"},
+                status=502
+            )
+
+        except requests.exceptions.RequestException:
+            return Response(
+                {"status": "error", "message": "External API error"},
+                status=502
+            )
+
+        except Exception:
+            return Response(
+                {"status": "error", "message": "Internal server error"},
+                status=500
+            )
+
+@api_view(['GET', 'DELETE'])
+def profile_detail(request, id):
+    try:
+        profile = Profile.objects.get(id=id)
+
+        if request.method == 'GET':
+            return Response({
+                "status": "success",
+                "data": serialize_profile(profile)
+            })
+
+        elif request.method == 'DELETE':
+            profile.delete()
+            return Response(status=204)
+
+    except Profile.DoesNotExist:
+        return Response(
+            {"status": "error", "message": "Profile not found"},
+            status=404
+        )
