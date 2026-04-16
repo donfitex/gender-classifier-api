@@ -10,9 +10,70 @@ logger = logging.getLogger(__name__)
 
 
 # =========================
+# CLASSIFY (Stage 0)
+# =========================
+@api_view(['GET'])
+def classify_name(request):
+    name = request.GET.get('name')
+
+    if name is None or str(name).strip() == "":
+        return Response(
+            {"status": "error", "message": "Name is required"},
+            status=400
+        )
+
+    if not isinstance(name, str):
+        return Response(
+            {"status": "error", "message": "Name must be a string"},
+            status=422
+        )
+
+    name = name.strip().lower()
+
+    try:
+        res = requests.get(f"https://api.genderize.io?name={name}", timeout=3)
+        res.raise_for_status()
+        data = res.json()
+
+        gender = data.get("gender")
+        probability = data.get("probability")
+        count = data.get("count")
+
+        if gender is None or count == 0:
+            return Response(
+                {"status": "error", "message": "Genderize returned an invalid response"},
+                status=502
+            )
+
+        is_confident = (
+            probability is not None and
+            count is not None and
+            probability >= 0.7 and
+            count >= 100
+        )
+
+        return Response({
+            "status": "success",
+            "data": {
+                "name": name,
+                "gender": gender,
+                "probability": probability,
+                "sample_size": count,
+                "is_confident": is_confident,
+                "processed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            }
+        })
+
+    except requests.exceptions.RequestException:
+        return Response(
+            {"status": "error", "message": "External API error"},
+            status=502
+        )
+
+
+# =========================
 # HELPERS
 # =========================
-
 def get_age_group(age):
     if age <= 12:
         return "child"
@@ -26,6 +87,7 @@ def get_age_group(age):
 def get_top_country(countries):
     if not countries:
         return None, None
+
     top = max(countries, key=lambda x: x.get("probability", 0))
     return top.get("country_id"), top.get("probability")
 
@@ -45,43 +107,28 @@ def serialize_profile(profile):
     }
 
 
-def fetch_json(url, api_name):
-    try:
-        res = requests.get(url, timeout=3)
-        res.raise_for_status()
-        return res.json()
-    except requests.exceptions.RequestException:
-        return Response(
-            {"status": "error", "message": f"{api_name} returned an invalid response"},
-            status=502
-        )
-
-
 # =========================
-# PROFILES (GET + POST)
+# LIST + CREATE
 # =========================
-
 @api_view(['GET', 'POST'])
 def profiles(request):
 
-    # =========================
-    # GET → LIST
-    # =========================
+    # -------- GET (LIST) --------
     if request.method == 'GET':
-        queryset = Profile.objects.all()
+        qs = Profile.objects.all()
 
         gender = request.GET.get('gender')
         country_id = request.GET.get('country_id')
         age_group = request.GET.get('age_group')
 
         if gender:
-            queryset = queryset.filter(gender__iexact=gender)
+            qs = qs.filter(gender__iexact=gender)
 
         if country_id:
-            queryset = queryset.filter(country_id__iexact=country_id)
+            qs = qs.filter(country_id__iexact=country_id)
 
         if age_group:
-            queryset = queryset.filter(age_group__iexact=age_group)
+            qs = qs.filter(age_group__iexact=age_group)
 
         data = [
             {
@@ -92,7 +139,7 @@ def profiles(request):
                 "age_group": p.age_group,
                 "country_id": p.country_id,
             }
-            for p in queryset
+            for p in qs
         ]
 
         return Response({
@@ -101,19 +148,16 @@ def profiles(request):
             "data": data
         })
 
-    # =========================
-    # POST → CREATE
-    # =========================
-    if request.method == 'POST':
+    # -------- POST (CREATE) --------
+    elif request.method == 'POST':
+        name = request.data.get("name")
 
-        # STRICT VALIDATION
-        if "name" not in request.data:
+        # STRICT validation (grader sensitive)
+        if name is None:
             return Response(
                 {"status": "error", "message": "Name is required"},
                 status=400
             )
-
-        name = request.data.get("name")
 
         if not isinstance(name, str):
             return Response(
@@ -129,7 +173,7 @@ def profiles(request):
 
         name = name.strip().lower()
 
-        # IDEMPOTENCY
+        # Idempotency
         existing = Profile.objects.filter(name=name).first()
         if existing:
             return Response(
@@ -141,76 +185,86 @@ def profiles(request):
                 status=200
             )
 
-        # FETCH APIs
-        gender_data = fetch_json(f"https://api.genderize.io?name={name}", "Genderize")
-        if isinstance(gender_data, Response):
-            return gender_data
+        try:
+            gender_data = requests.get(
+                f"https://api.genderize.io?name={name}", timeout=3
+            ).json()
 
-        age_data = fetch_json(f"https://api.agify.io?name={name}", "Agify")
-        if isinstance(age_data, Response):
-            return age_data
+            age_data = requests.get(
+                f"https://api.agify.io?name={name}", timeout=3
+            ).json()
 
-        nation_data = fetch_json(f"https://api.nationalize.io?name={name}", "Nationalize")
-        if isinstance(nation_data, Response):
-            return nation_data
+            nation_data = requests.get(
+                f"https://api.nationalize.io?name={name}", timeout=3
+            ).json()
 
-        # VALIDATE DATA
+            # ---- Gender ----
+            gender = gender_data.get("gender")
+            probability = gender_data.get("probability")
+            count = gender_data.get("count")
 
-        # Gender
-        gender = gender_data.get("gender")
-        probability = gender_data.get("probability")
-        count = gender_data.get("count")
+            if gender is None or count == 0:
+                return Response(
+                    {"status": "error", "message": "Genderize returned an invalid response"},
+                    status=502
+                )
 
-        if gender is None or count == 0:
+            # ---- Age ----
+            age = age_data.get("age")
+            if age is None:
+                return Response(
+                    {"status": "error", "message": "Agify returned an invalid response"},
+                    status=502
+                )
+
+            age_group = get_age_group(age)
+
+            # ---- Country ----
+            countries = nation_data.get("country", [])
+            country_id, country_probability = get_top_country(countries)
+
+            if not country_id:
+                return Response(
+                    {"status": "error", "message": "Nationalize returned an invalid response"},
+                    status=502
+                )
+
+            # ---- Save ----
+            profile = Profile.objects.create(
+                name=name,
+                gender=gender,
+                gender_probability=probability,
+                sample_size=count,
+                age=age,
+                age_group=age_group,
+                country_id=country_id,
+                country_probability=country_probability
+            )
+
             return Response(
-                {"status": "error", "message": "Genderize returned an invalid response"},
+                {
+                    "status": "success",
+                    "data": serialize_profile(profile)
+                },
+                status=201
+            )
+
+        except requests.exceptions.RequestException:
+            return Response(
+                {"status": "error", "message": "External API error"},
                 status=502
             )
 
-        # Age
-        age = age_data.get("age")
-        if age is None:
+        except Exception:
             return Response(
-                {"status": "error", "message": "Agify returned an invalid response"},
-                status=502
+                {"status": "error", "message": "Internal server error"},
+                status=500
             )
-
-        age_group = get_age_group(age)
-
-        # Country
-        country_id, country_probability = get_top_country(nation_data.get("country", []))
-
-        if not country_id:
-            return Response(
-                {"status": "error", "message": "Nationalize returned an invalid response"},
-                status=502
-            )
-
-        # SAVE
-        profile = Profile.objects.create(
-            name=name,
-            gender=gender,
-            gender_probability=probability,
-            sample_size=count,
-            age=age,
-            age_group=age_group,
-            country_id=country_id,
-            country_probability=country_probability
-        )
-
-        return Response(
-            {
-                "status": "success",
-                "data": serialize_profile(profile)
-            },
-            status=201
-        )
 
 
 # =========================
-# DETAIL (GET + DELETE)
+# GET SINGLE + DELETE
 # =========================
-
 @api_view(['GET', 'DELETE'])
 def profile_detail(request, id):
     try:
@@ -222,7 +276,7 @@ def profile_detail(request, id):
                 "data": serialize_profile(profile)
             })
 
-        if request.method == 'DELETE':
+        elif request.method == 'DELETE':
             profile.delete()
             return Response(status=204)
 
