@@ -44,7 +44,8 @@ MIDDLEWARE = [
 
 # -------- CORS --------
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_HEADERS = ['*']
+
+#CORS_ALLOW_HEADERS = ['*']
 #CORS_ALLOW_METHODS = [
  #   'GET',
  #   'OPTIONS',
@@ -97,7 +98,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # -------- Default PK --------
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+#DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # -------- Logging --------
 LOGGING = {
