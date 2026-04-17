@@ -76,6 +76,7 @@ Age estimation
 Nationality prediction
 Data processing & transformation
 Idempotent profile creation
+UID v7 IDs
 Input validation (400 / 422)
 Error handling (404 / 500 / 502)
 UTC timestamps (ISO 8601)
