@@ -43,7 +43,7 @@ class ForceCORSMiddleware:
 # -------- Middleware --------
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
-    "your_project.middleware.ForceCORSMiddleware",
+    "gender_classify_api.middleware.ForceCORSMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
