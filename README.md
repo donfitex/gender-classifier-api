@@ -46,6 +46,28 @@ Request:
   "name": "ella"
 }
 
+### Response (201):
+
+{
+  "status": "success",
+  "data": {
+    "id": "...",
+    "name": "ella",
+    "gender": "female",
+    "gender_probability": 0.99,
+    "sample_size": 1234,
+    "age": 46,
+    "age_group": "adult",
+    "country_id": "DRC",
+    "country_probability": 0.85,
+    "created_at": "2026-04-01T12:00:00Z"
+  }
+}
+
+### Idempotency
+
+If profile exists:
+
 ### Response Example
 
 <```json>
@@ -68,6 +90,58 @@ Request:
 
 ---
 
+## 3. Get All Profiles
+
+GET /profiles/
+
+- Optional filters:
+
+    gender
+
+    country_id
+
+    age_group
+
+Example:
+
+/profiles/?gender=male&country_id=NG
+
+---
+
+## 4. Get Single Profile
+
+GET /profiles/{id}
+
+---
+
+## 5. Delete Profile
+
+DELETE /profiles/{id}
+
+- Returns:
+
+   204 No Content
+
+---
+
+## Classification Rules
+
+- Age Groups:
+
+    0–12 → child
+
+    13–19 → teenager
+
+    20–59 → adult
+
+    60+ → senior
+
+- Country:
+
+    Highest probability from Nationalize API
+
+---
+
 ## 📌 Features
 
 Multi-API integration:
@@ -76,7 +150,6 @@ Age estimation
 Nationality prediction
 Data processing & transformation
 Idempotent profile creation
-UID v7 IDs
 Input validation (400 / 422)
 Error handling (404 / 500 / 502)
 UTC timestamps (ISO 8601)
