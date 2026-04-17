@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'classify',
+    'profiles',
 ]
 # -------- REST Framework --------
 REST_FRAMEWORK = {
@@ -35,7 +36,6 @@ REST_FRAMEWORK = {
 # -------- Middleware --------
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
-    "classify.middleware.ForceCORSMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -47,15 +47,9 @@ MIDDLEWARE = [
 
 # -------- CORS --------
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = False
 
-class ForceCORSMiddleware:
-    def __init__(self, get_response):
-        self.get_response = get_response
 
-    def __call__(self, request):
-        response = self.get_response(request)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
 
 
 #CORS_ALLOW_HEADERS = ['*']
