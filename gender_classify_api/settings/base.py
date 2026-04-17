@@ -52,12 +52,9 @@ CORS_ALLOW_CREDENTIALS = False
 
 
 
-#CORS_ALLOW_HEADERS = ['*']
-#CORS_ALLOW_METHODS = [
- #   'GET',
- #   'OPTIONS',
-#    'POST',
-#]
+CORS_ALLOW_HEADERS = ['*']
+CORS_ALLOW_METHODS = ['*']
+CORS_EXPOSE_HEADERS = ['*']
 
 # -------- URLs & WSGI --------
 ROOT_URLCONF = 'gender_classify_api.urls'
