@@ -13,6 +13,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 
 # -------- Applications --------
 INSTALLED_APPS = [
+    "corsheaders",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -21,7 +22,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'rest_framework',
-    'corsheaders',
     'classify',
     'profiles',
 ]
