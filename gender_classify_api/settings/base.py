@@ -44,16 +44,19 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
+from corsheaders.defaults import default_headers, default_methods
 # -------- CORS --------
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = False
+CORS_ALLOW_PRIVATE_NETWORK = True
+CSRF_TRUSTED_ORIGINS = [
+    "https://gender-classifier-api-production.up.railway.app"
+]
 
 
 
-
-CORS_ALLOW_HEADERS = ['*']
-CORS_ALLOW_METHODS = ['*']
+CORS_ALLOW_HEADERS = list(default_headers)
+CORS_ALLOW_METHODS = list(default_methods)
 CORS_EXPOSE_HEADERS = ['*']
 
 # -------- URLs & WSGI --------
