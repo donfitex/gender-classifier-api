@@ -31,19 +31,11 @@ REST_FRAMEWORK = {
 }
 
 
-class ForceCORSMiddleware:
-    def __init__(self, get_response):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        response = self.get_response(request)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
 
 # -------- Middleware --------
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
-    "gender_classify_api.middleware.ForceCORSMiddleware",
+    "classify.middleware.ForceCORSMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -55,6 +47,16 @@ MIDDLEWARE = [
 
 # -------- CORS --------
 CORS_ALLOW_ALL_ORIGINS = True
+
+class ForceCORSMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
+
 
 #CORS_ALLOW_HEADERS = ['*']
 #CORS_ALLOW_METHODS = [
