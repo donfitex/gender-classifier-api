@@ -22,7 +22,7 @@ GET /api/classify/?name={name}
 
 <https://gender-classifier-api-production.up.railway.app/api/classify/?name=Raphael>
 
-### Response
+## ✅ Success Response
 
 <```json>
 {
@@ -37,7 +37,39 @@ GET /api/classify/?name={name}
   }
 }
 
-## 2. POST /api/profiles
+---
+
+## ❌ Error Responses
+
+Missing name (400)
+{
+  "status": "error",
+  "message": "Name is required"
+}
+
+Invalid name (422)
+{
+  "status": "error",
+  "message": "Name must be a string"
+}
+
+No prediction
+{
+  "status": "error",
+  "message": "No prediction available for the provided name"
+}
+
+External API error (502)
+{
+  "status": "error",
+  "message": "External API error"
+}
+
+---
+
+## 2. Create Profile
+
+POST /api/profiles
 
 Create Profile Using External API
 
@@ -46,7 +78,7 @@ Request:
   "name": "ella"
 }
 
-### Response (201):
+### Response (201)
 
 {
   "status": "success",
@@ -92,7 +124,7 @@ If profile exists:
 
 ## 3. Get All Profiles
 
-GET /profiles/
+GET /api/profiles/
 
 - Optional filters:
 
@@ -104,19 +136,19 @@ GET /profiles/
 
 Example:
 
-/profiles/?gender=male&country_id=NG
+/api/profiles/?gender=male&country_id=NG
 
 ---
 
 ## 4. Get Single Profile
 
-GET /profiles/{id}
+GET /api/profiles/{id}
 
 ---
 
 ## 5. Delete Profile
 
-DELETE /profiles/{id}
+DELETE /api/profiles/{id}
 
 - Returns:
 
@@ -174,50 +206,24 @@ is_confident = probability >= 0.7 AND sample_size >= 100
 
 ---
 
-## ✅ Success Response
+## ❗ Error Handling
 
-<```json>
-{
- "status": "success",
-    "data": {
-        "name": "raphael",
-        "gender": "male",
-        "probability": 0.99,
-        "sample_size": 124068,
-        "is_confident": true,
-        "processed_at": "2026-04-11T18:06:25.541357Z"
-  }
-}
+All errors follow this format:
 
----
-
-## ❌ Error Responses
-
-Missing name (400)
 {
   "status": "error",
-  "message": "Name is required"
+  "message": "Error message"
 }
 
-Invalid name (422)
-{
-  "status": "error",
-  "message": "Name must be a string"
-}
+### Error Status Codes
 
-No prediction
-{
-  "status": "error",
-  "message": "No prediction available for the provided name"
-}
+Code                      Meaning
 
-External API error (502)
-{
-  "status": "error",
-  "message": "External API error"
-}
-
----
+400                       Missing or empty name
+422                       Invalid input type
+404                       Profile not found
+502                       External API error
+500                       Internal server error
 
 ## 🛠 Tech Stack
 
