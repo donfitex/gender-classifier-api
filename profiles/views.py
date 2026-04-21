@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Profile
 from .serializers import ProfileSerializer, ProfileListSerializer
-from .services import get_gender, get_age, get_country
+from .services import get_gender, get_age, get_country, get_country_name
 
 
 def get_age_group(age):
@@ -126,6 +126,7 @@ def profiles(request):
                     {"status": "error", "message": "Nationalize returned an invalid response"},
                     status=502
                 )
+            country_name = get_country_name(country_id)
 
             profile = Profile.objects.create(
                 name=name,
@@ -134,8 +135,10 @@ def profiles(request):
                 sample_size=count,
                 age=age,
                 age_group=age_group,
+                country_name=country_name,
                 country_id=country_id,
                 country_probability=country_probability
+
             )
 
             serializer = ProfileSerializer(profile)
