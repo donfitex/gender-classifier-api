@@ -103,6 +103,14 @@ def search_profiles(request):
 
     parsed = parse_query(query)
 
+    # merge pagination params
+    parsed.update({
+        "page": request.GET.get("page"),
+        "limit": request.GET.get("limit"),
+        "sort_by": request.GET.get("sort_by"),
+        "order": request.GET.get("order"),
+    })
+
     if not parsed:
         return Response(
             {"status": "error", "message": "Unable to interpret query"},
