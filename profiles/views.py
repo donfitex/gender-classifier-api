@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Profile
 from .serializers import ProfileSerializer, ProfileListSerializer
-from .services import get_gender, get_age, get_country, get_country_name
+from .services.external_service import get_gender, get_age, get_country, get_country_name
 
 
 def get_age_group(age):
