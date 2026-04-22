@@ -67,6 +67,8 @@ def parse_query(query: str):
         filters["age_group"] = "adult"
     elif "senior" in words or "seniors" in words:
         filters["age_group"] = "senior"
+    elif "young" in words and ("above" in q or "over" in q):
+        filters.pop("max_age", None)
 
     # -------------------------
     # SPECIAL: "young"

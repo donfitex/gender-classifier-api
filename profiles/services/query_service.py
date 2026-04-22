@@ -1,5 +1,10 @@
 from ..models import Profile
 
+def safe_int(value):
+    try:
+        return int(value)
+    except:
+        return None
 
 def apply_filters(qs, params):
     if params.get("gender"):
@@ -11,40 +16,53 @@ def apply_filters(qs, params):
     if params.get("country_id"):
         qs = qs.filter(country_id__iexact=params["country_id"])
 
-    if params.get("min_age"):
-        qs = qs.filter(age__gte=int(params["min_age"]))
+    min_age = safe_int(params.get("min_age"))
+    max_age = safe_int(params.get("max_age"))
 
-    if params.get("max_age"):
-        qs = qs.filter(age__lte=int(params["max_age"]))
 
-    if params.get("min_gender_probability"):
-        qs = qs.filter(gender_probability__gte=float(params["min_gender_probability"]))
+    if params.get("min_age") and min_age is None:
+        raise ValueError("Invalid query parameters")
 
-    if params.get("min_country_probability"):
-        qs = qs.filter(country_probability__gte=float(params["min_country_probability"]))
+    if params.get("max_age") and max_age is None:
+        raise ValueError("Invalid query parameters")
+
+    if min_age is not None:
+        qs = qs.filter(age__gte=min_age)
+
+    if max_age is not None:
+        qs = qs.filter(age__lte=max_age)
 
     return qs
 
 
+
+ALLOWED_FIELDS = ["age", "created_at", "gender_probability"]
+
 def apply_sorting(qs, sort_by, order):
-    allowed_fields = ["age", "created_at", "gender_probability"]
+
+    if sort_by and sort_by not in ALLOWED_FIELDS:
+        raise ValueError("Invalid query parameters")
 
     if sort_by:
-        if sort_by not in allowed_fields:
-            raise ValueError("Invalid sort field")
-
         field = sort_by
         if order == "desc":
             field = f"-{field}"
-
         qs = qs.order_by(field)
 
     return qs
 
 
 def paginate(qs, page, limit):
-    page = int(page or 1)
-    limit = min(int(limit or 10), 50)
+    try:
+        page = int(page or 1)
+        limit = int(limit or 10)
+    except:
+        raise ValueError("Invalid query parameters")
+
+    if page < 1 or limit < 1:
+        raise ValueError("Invalid query parameters")
+
+    limit = min(limit, 50)
 
     start = (page - 1) * limit
     end = start + limit
