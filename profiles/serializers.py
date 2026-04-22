@@ -44,8 +44,11 @@ class ProfileCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError("Name must be a string")
         
         value = value.strip().lower()
-        
+
         if not value:
             raise serializers.ValidationError("Name is required")
+        
+        if value.isdigit():
+            raise serializers.ValidationError("Invalid name")
 
         return value

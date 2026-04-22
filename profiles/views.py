@@ -43,8 +43,9 @@ def profiles(request):
         serializer = ProfileCreateSerializer(data=request.data)
 
         if not serializer.is_valid():
+            error_msg = list(serializer.errors.values())[0][0]
             return Response(
-                {"status": "error", "message": serializer.errors},
+                {"status": "error", "message": error_msg},
                 status=400
             )
 
