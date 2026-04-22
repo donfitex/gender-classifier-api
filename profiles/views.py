@@ -4,24 +4,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Profile
 from .serializers import ProfileSerializer, ProfileListSerializer
-from .services.external_service import get_gender, get_age, get_country, get_country_name
-
-
-def get_age_group(age):
-    if age <= 12:
-        return "child"
-    elif age <= 19:
-        return "teenager"
-    elif age <= 59:
-        return "adult"
-    return "senior"
-
-
-def get_top_country(countries):
-    if not countries:
-        return None, None
-    top = max(countries, key=lambda x: x.get("probability", 0))
-    return top.get("country_id"), top.get("probability")
+from .services.external_service import get_gender, get_age, get_country
+from .utils import get_age_group, get_top_country, get_country_name
 
 
 # =========================
