@@ -1,4 +1,4 @@
-# Gender Classification API
+# Intelligence Query Engine API
 
 A Django REST API that classifies names by gender using the Genderize API, with additional processing and validation.
 
@@ -153,6 +153,32 @@ DELETE /api/profiles/{id}
 - Returns:
 
    204 No Content
+
+---
+
+## 6. 🔍 Search
+
+GET /api/profiles/search?q=young males from nigeria
+
+---
+
+## 7. 🔍 Advanced Filtering Examples
+
+/api/profiles?gender=male&country_id=NG&min_age=25&max_age=40
+
+---
+
+## 8.  NLP Examples (IMPORTANT)
+
+young males → gender=male + age 16–24
+females above 30 → gender=female + min_age=30
+people from angola → country_id=AO
+
+---
+
+## 9. 📃 Pagination
+
+?page=1&limit=10
 
 ---
 
