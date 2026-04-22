@@ -39,12 +39,13 @@ class ProfileCreateSerializer(serializers.Serializer):
     name = serializers.CharField()
 
     def validate_name(self, value):
-        value = value.strip().lower()
-
-        if not value:
-            raise serializers.ValidationError("Name is required")
-
+        
         if not isinstance(value, str):
             raise serializers.ValidationError("Name must be a string")
+        
+        value = value.strip().lower()
+        
+        if not value:
+            raise serializers.ValidationError("Name is required")
 
         return value

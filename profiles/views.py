@@ -54,13 +54,16 @@ def profiles(request):
 
         output = ProfileSerializer(profile)
 
-        return Response(
-            {
-                "status": "success",
-                "data": output.data
-            },
-            status=201 if created else 200
-        )
+        response = {
+            "status": "success",
+            "data": output.data
+        }
+        if not created:
+            response["message"] = "Profile already exists"
+
+        return Response(response, status=201 if created else 200)
+
+
 
 
 # =========================
