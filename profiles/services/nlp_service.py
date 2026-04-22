@@ -38,28 +38,40 @@ def parse_query(query: str):
 
     q = query.lower().strip()
 
+    words = re.findall(r"\b\w+\b", q.lower())
+
     filters = {}
 
+    
     # -------------------------
     # GENDER
     # -------------------------
-    if "male" in q:
-        filters["gender"] = "male"
-    elif "female" in q:
+    has_male = "male" in words or "males" in words
+    has_female = "female" in words or "females" in words
+
+    if has_male and has_female:
+        pass  # no filter (means both)
+    elif has_female:
         filters["gender"] = "female"
+    elif has_male:
+        filters["gender"] = "male"
 
     # -------------------------
     # AGE GROUP (stored)
     # -------------------------
-    for key, value in AGE_GROUPS.items():
-        if key in q:
-            filters["age_group"] = value
-            break
+    if "child" in words or "children" in words:
+        filters["age_group"] = "child"
+    elif "teenager" in words or "teenagers" in words:
+        filters["age_group"] = "teenager"
+    elif "adult" in words or "adults" in words:
+        filters["age_group"] = "adult"
+    elif "senior" in words or "seniors" in words:
+        filters["age_group"] = "senior"
 
     # -------------------------
     # SPECIAL: "young"
     # -------------------------
-    if "young" in q:
+    if "young" in words:
         filters["min_age"] = 16
         filters["max_age"] = 24
 
@@ -82,15 +94,15 @@ def parse_query(query: str):
     # -------------------------
     # COUNTRY
     # -------------------------
-    for country_name, code in COUNTRY_MAP.items():
-        if country_name in q:
-            filters["country_id"] = code
+    for word in words:
+        if word in COUNTRY_MAP:
+            filters["country_id"] = COUNTRY_MAP[word]
             break
 
     # -------------------------
     # VALIDATION (VERY IMPORTANT)
     # -------------------------
     if not filters:
-        raise ValueError("Unable to interpret query")
+        return None
 
     return filters

@@ -3,9 +3,9 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .models import Profile
-from .serializers import ProfileSerializer, ProfileCreateSerializer
+from .serializers import ProfileSerializer, ProfileCreateSerializer, ProfileListSerializer
 from .services.profile_service import create_profile
-from .services.query_service import filter_profiles
+from .services.query_service import filter_profiles, apply_filters, apply_sorting, paginate
 from .services.nlp_service import parse_query
 
 
@@ -44,6 +44,13 @@ def profiles(request):
 
         if not serializer.is_valid():
             error_msg = list(serializer.errors.values())[0][0]
+            
+            if "string" in error_msg.lower() or "invalid" in error_msg.lower():
+                return Response(
+                    {"status": "error", "message": error_msg},
+                    status=422
+                )
+
             return Response(
                 {"status": "error", "message": error_msg},
                 status=400
@@ -95,40 +102,46 @@ def profile_detail(request, id):
 # =========================
 # NLP SEARCH (CORE FEATURE)
 # =========================
+
+
 @api_view(['GET'])
 def search_profiles(request):
-    query = request.GET.get("q")
+    q = request.GET.get("q")
 
-    if not query:
+    if not q:
         return Response(
             {"status": "error", "message": "Query is required"},
             status=400
         )
 
-    parsed = parse_query(query)
+    filters = parse_query(q)
 
-    # merge pagination params
-    parsed.update({
-        "page": request.GET.get("page"),
-        "limit": request.GET.get("limit"),
-        "sort_by": request.GET.get("sort_by"),
-        "order": request.GET.get("order"),
-    })
-
-    if not parsed:
+    if not filters:
         return Response(
             {"status": "error", "message": "Unable to interpret query"},
             status=400
         )
 
-    result = filter_profiles({**parsed, **request.GET})
+    qs = Profile.objects.all()
+    qs = apply_filters(qs, filters)
 
-    serializer = ProfileSerializer(result["data"], many=True)
+    # sorting
+    sort_by = request.GET.get("sort_by")
+    order = request.GET.get("order")
+    qs = apply_sorting(qs, sort_by, order)
+
+    # pagination
+    page = request.GET.get("page")
+    limit = request.GET.get("limit")
+
+    qs, total, page, limit = paginate(qs, page, limit)
+
+    serializer = ProfileListSerializer(qs, many=True)
 
     return Response({
         "status": "success",
-        "page": result["page"],
-        "limit": result["limit"],
-        "total": result["total"],
+        "page": page,
+        "limit": limit,
+        "total": total,
         "data": serializer.data
     })
