@@ -1,4 +1,4 @@
-from .external_service import fetch_gender, fetch_age, fetch_country
+from .external_service import get_gender as fetch_gender, get_age as fetch_age, get_country as fetch_country
 from ..models import Profile
 from ..utils import get_age_group, get_country_name
 
