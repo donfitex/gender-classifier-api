@@ -9,7 +9,7 @@ class Profile(models.Model):
 
     gender = models.CharField(max_length=10)
     gender_probability = models.FloatField()
-    sample_size = models.IntegerField(null=True, blank=True)
+    sample_size = models.IntegerField(null=True, blank=True, default=None)
 
     age = models.IntegerField()
     age_group = models.CharField(max_length=20)
