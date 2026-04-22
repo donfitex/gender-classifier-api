@@ -1,11 +1,12 @@
-import requests
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+
 from .models import Profile
-from .serializers import ProfileSerializer, ProfileListSerializer
-from .services.external_service import get_gender, get_age, get_country
-from .utils import get_age_group, get_top_country, get_country_name
+from .serializers import ProfileSerializer, ProfileCreateSerializer
+from .services.profile_service import create_profile
+from .services.query_service import filter_profiles
+from .services.nlp_service import parse_query
 
 
 # =========================
@@ -16,127 +17,50 @@ def profiles(request):
 
     # -------- GET --------
     if request.method == 'GET':
-        qs = Profile.objects.all()
+        try:
+            result = filter_profiles(request.GET)
 
-        gender = request.GET.get("gender")
-        country_id = request.GET.get("country_id")
-        age_group = request.GET.get("age_group")
+            serializer = ProfileSerializer(result["data"], many=True)
 
-        if gender:
-            qs = qs.filter(gender__iexact=gender)
+            return Response({
+                "status": "success",
+                "page": result["page"],
+                "limit": result["limit"],
+                "total": result["total"],
+                "data": serializer.data
+            })
 
-        if country_id:
-            qs = qs.filter(country_id__iexact=country_id)
-
-        if age_group:
-            qs = qs.filter(age_group__iexact=age_group)
-
-        serializer = ProfileListSerializer(qs, many=True)
-
-        return Response({
-            "status": "success",
-            "count": qs.count(),
-            "data": serializer.data
-        })
+        except ValueError:
+            return Response(
+                {"status": "error", "message": "Invalid query parameters"},
+                status=400
+            )
 
 
     # -------- POST --------
     elif request.method == 'POST':
-        name = request.data.get("name")
 
-        if name is None:
+        serializer = ProfileCreateSerializer(data=request.data)
+
+        if not serializer.is_valid():
             return Response(
-                {"status": "error", "message": "Name is required"},
+                {"status": "error", "message": serializer.errors},
                 status=400
             )
 
-        if not isinstance(name, str):
-            return Response(
-                {"status": "error", "message": "Name must be a string"},
-                status=422
-            )
+        name = serializer.validated_data["name"]
 
-        if name.strip() == "":
-            return Response(
-                {"status": "error", "message": "Name is required"},
-                status=400
-            )
+        profile, created = create_profile(name)
 
-        name = name.strip().lower()
+        output = ProfileSerializer(profile)
 
-        # Idempotency
-        existing = Profile.objects.filter(name=name).first()
-        if existing:
-            serializer = ProfileSerializer(existing)
-            return Response(
-                {
-                    "status": "success",
-                    "message": "Profile already exists",
-                    "data": serializer.data
-                },
-                status=200
-            )
-
-        try:
-            gender_data = get_gender(name)
-            age_data = get_age(name)
-            nation_data = get_country(name)
-
-            # Gender
-            gender = gender_data.get("gender")
-            probability = gender_data.get("probability")
-            count = gender_data.get("count")
-
-            if gender is None or count == 0:
-                return Response(
-                    {"status": "error", "message": "Genderize returned an invalid response"},
-                    status=502
-                )
-
-            # Age
-            age = age_data.get("age")
-            if age is None:
-                return Response(
-                    {"status": "error", "message": "Agify returned an invalid response"},
-                    status=502
-                )
-
-            age_group = get_age_group(age)
-
-            # Country
-            country_id, country_probability = get_top_country(nation_data.get("country", []))
-            if not country_id:
-                return Response(
-                    {"status": "error", "message": "Nationalize returned an invalid response"},
-                    status=502
-                )
-            country_name = get_country_name(country_id)
-
-            profile = Profile.objects.create(
-                name=name,
-                gender=gender,
-                gender_probability=probability,
-                sample_size=count,
-                age=age,
-                age_group=age_group,
-                country_name=country_name,
-                country_id=country_id,
-                country_probability=country_probability
-
-            )
-
-            serializer = ProfileSerializer(profile)
-
-            return Response(
-                {"status": "success", "data": serializer.data},
-                status=201
-            )
-
-        except requests.exceptions.RequestException:
-            return Response(
-                {"status": "error", "message": "External API error"},
-                status=502
-            )
+        return Response(
+            {
+                "status": "success",
+                "data": output.data
+            },
+            status=201 if created else 200
+        )
 
 
 # =========================
@@ -148,10 +72,9 @@ def profile_detail(request, id):
         profile = Profile.objects.get(id=id)
 
         if request.method == 'GET':
-            serializer = ProfileSerializer(profile)
             return Response({
                 "status": "success",
-                "data": serializer.data
+                "data": ProfileSerializer(profile).data
             })
 
         elif request.method == 'DELETE':
@@ -163,3 +86,37 @@ def profile_detail(request, id):
             {"status": "error", "message": "Profile not found"},
             status=404
         )
+
+
+# =========================
+# NLP SEARCH (CORE FEATURE)
+# =========================
+@api_view(['GET'])
+def search_profiles(request):
+    query = request.GET.get("q")
+
+    if not query:
+        return Response(
+            {"status": "error", "message": "Query is required"},
+            status=400
+        )
+
+    parsed = parse_query(query)
+
+    if not parsed:
+        return Response(
+            {"status": "error", "message": "Unable to interpret query"},
+            status=400
+        )
+
+    result = filter_profiles({**parsed, **request.GET})
+
+    serializer = ProfileSerializer(result["data"], many=True)
+
+    return Response({
+        "status": "success",
+        "page": result["page"],
+        "limit": result["limit"],
+        "total": result["total"],
+        "data": serializer.data
+    })
