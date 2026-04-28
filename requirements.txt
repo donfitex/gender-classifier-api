@@ -1,6 +1,8 @@
 asgiref==3.11.1
 certifi==2026.2.25
 charset-normalizer==3.4.7
+click==8.3.2
+colorama==0.4.6
 Django==6.0.4
 django-cors-headers==4.9.0
 django-filter==25.2
@@ -9,6 +11,7 @@ gunicorn==25.3.0
 idna==3.11
 packaging==26.0
 pycountry==26.2.16
+PyJWT==2.12.1
 python-dotenv==1.2.2
 requests==2.33.1
 sqlparse==0.5.5
