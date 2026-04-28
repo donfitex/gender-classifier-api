@@ -40,6 +40,13 @@ def profiles(request):
     # -------- POST --------
     elif request.method == 'POST':
 
+        # Only admins can create profiles
+        if request.user.role != "admin":
+            return Response(
+                {"status": "error", "message": "Forbidden"},
+                status=403
+            )
+
         serializer = ProfileCreateSerializer(data=request.data)
 
         if not serializer.is_valid():
