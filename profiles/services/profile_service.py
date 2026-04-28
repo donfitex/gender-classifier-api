@@ -1,6 +1,6 @@
 from .external_service import get_gender as fetch_gender, get_age as fetch_age, get_country as fetch_country
 from ..models import Profile
-from ..utils import get_age_group, get_country_name
+from ..utils.utils import get_age_group, get_country_name
 
 def create_profile(name):
     name = name.strip().lower()

@@ -7,13 +7,19 @@ from .serializers import ProfileSerializer, ProfileCreateSerializer, ProfileList
 from .services.profile_service import create_profile
 from .services.query_service import filter_profiles, apply_filters, apply_sorting, paginate
 from .services.nlp_service import parse_query
-
+from .utils.versioning import check_version
 
 # =========================
 # LIST + CREATE
 # =========================
 @api_view(['GET', 'POST'])
 def profiles(request):
+    # Check API version
+    if not check_version(request):
+        return Response(
+            {"status": "error", "message": "API version header required"},
+            status=400
+        )
 
     # -------- GET --------
     if request.method == 'GET':
@@ -86,6 +92,13 @@ def profiles(request):
 # =========================
 @api_view(['GET', 'DELETE'])
 def profile_detail(request, id):
+    # Check API version
+    if not check_version(request):
+        return Response(
+            {"status": "error", "message": "API version header required"},
+            status=400
+        )
+    
     try:
         profile = Profile.objects.get(id=id)
 
@@ -113,6 +126,13 @@ def profile_detail(request, id):
 
 @api_view(['GET'])
 def search_profiles(request):
+    # Check API version
+    if not check_version(request):
+        return Response(
+            {"status": "error", "message": "API version header required"},
+            status=400
+        )
+    
     q = request.GET.get("q")
 
     if not q:
