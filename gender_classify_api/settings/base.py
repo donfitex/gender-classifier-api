@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'classify',
     'profiles',
+    'users',
 ]
 # -------- REST Framework --------
 REST_FRAMEWORK = {
