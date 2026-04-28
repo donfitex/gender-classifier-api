@@ -1,38 +1,81 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework import status
 
 from .models import Profile
-from .serializers import ProfileSerializer, ProfileCreateSerializer, ProfileListSerializer
+from .serializers import (
+    ProfileSerializer,
+    ProfileCreateSerializer,
+    ProfileListSerializer
+)
+
 from .services.profile_service import create_profile
-from .services.query_service import filter_profiles, apply_filters, apply_sorting, paginate
+from .services.query_service import apply_filters, apply_sorting
 from .services.nlp_service import parse_query
+
 from .utils.versioning import check_version
+from .utils.pagination import paginate_queryset, build_links
+
+from .exports.csv_export import export_profiles_csv
+
 
 # =========================
 # LIST + CREATE
 # =========================
 @api_view(['GET', 'POST'])
 def profiles(request):
-    # Check API version
+
+    # -------------------------
+    # API VERSION CHECK
+    # -------------------------
     if not check_version(request):
         return Response(
             {"status": "error", "message": "API version header required"},
             status=400
         )
 
-    # -------- GET --------
+    # =========================
+    # GET → LIST PROFILES
+    # =========================
     if request.method == 'GET':
         try:
-            result = filter_profiles(request.GET)
+            qs = Profile.objects.all()
 
-            serializer = ProfileSerializer(result["data"], many=True)
+            # -------------------------
+            # FILTERING
+            # -------------------------
+            qs = apply_filters(qs, request.GET)
+
+            # -------------------------
+            # SORTING
+            # -------------------------
+            sort_by = request.GET.get("sort_by")
+            order = request.GET.get("order")
+            qs = apply_sorting(qs, sort_by, order)
+
+            # -------------------------
+            # CSV EXPORT
+            # -------------------------
+            if request.GET.get("format") == "csv":
+                return export_profiles_csv(qs)
+
+            # -------------------------
+            # PAGINATION
+            # -------------------------
+            data, meta = paginate_queryset(qs, request)
+
+            serializer = ProfileListSerializer(data, many=True)
+
+            links = build_links(
+                request,
+                meta["page"],
+                meta["limit"],
+                meta["total_pages"]
+            )
 
             return Response({
                 "status": "success",
-                "page": result["page"],
-                "limit": result["limit"],
-                "total": result["total"],
+                **meta,
+                "links": links,
                 "data": serializer.data
             })
 
@@ -43,11 +86,15 @@ def profiles(request):
             )
 
 
-    # -------- POST --------
+    # =========================
+    # POST → CREATE PROFILE (ADMIN ONLY)
+    # =========================
     elif request.method == 'POST':
 
-        # Only admins can create profiles
-        if request.user.role != "admin":
+        # -------------------------
+        # ROLE CHECK
+        # -------------------------
+        if not hasattr(request, "user") or request.user.role != "admin":
             return Response(
                 {"status": "error", "message": "Forbidden"},
                 status=403
@@ -57,8 +104,9 @@ def profiles(request):
 
         if not serializer.is_valid():
             error_msg = list(serializer.errors.values())[0][0]
-            
-            if "string" in error_msg.lower() or "invalid" in error_msg.lower():
+
+            # 422 → invalid type
+            if "string" in str(error_msg).lower():
                 return Response(
                     {"status": "error", "message": error_msg},
                     status=422
@@ -71,6 +119,9 @@ def profiles(request):
 
         name = serializer.validated_data["name"]
 
+        # -------------------------
+        # SERVICE CALL
+        # -------------------------
         profile, created = create_profile(name)
 
         output = ProfileSerializer(profile)
@@ -79,12 +130,11 @@ def profiles(request):
             "status": "success",
             "data": output.data
         }
+
         if not created:
             response["message"] = "Profile already exists"
 
         return Response(response, status=201 if created else 200)
-
-
 
 
 # =========================
@@ -92,23 +142,35 @@ def profiles(request):
 # =========================
 @api_view(['GET', 'DELETE'])
 def profile_detail(request, id):
-    # Check API version
+
+    # -------------------------
+    # API VERSION CHECK
+    # -------------------------
     if not check_version(request):
         return Response(
             {"status": "error", "message": "API version header required"},
             status=400
         )
-    
+
     try:
         profile = Profile.objects.get(id=id)
 
+        # -------- GET --------
         if request.method == 'GET':
             return Response({
                 "status": "success",
                 "data": ProfileSerializer(profile).data
             })
 
+        # -------- DELETE (ADMIN ONLY) --------
         elif request.method == 'DELETE':
+
+            if not hasattr(request, "user") or request.user.role != "admin":
+                return Response(
+                    {"status": "error", "message": "Forbidden"},
+                    status=403
+                )
+
             profile.delete()
             return Response(status=204)
 
@@ -122,17 +184,18 @@ def profile_detail(request, id):
 # =========================
 # NLP SEARCH (CORE FEATURE)
 # =========================
-
-
 @api_view(['GET'])
 def search_profiles(request):
-    # Check API version
+
+    # -------------------------
+    # API VERSION CHECK
+    # -------------------------
     if not check_version(request):
         return Response(
             {"status": "error", "message": "API version header required"},
             status=400
         )
-    
+
     q = request.GET.get("q")
 
     if not q:
@@ -141,6 +204,9 @@ def search_profiles(request):
             status=400
         )
 
+    # -------------------------
+    # NLP PARSING
+    # -------------------------
     filters = parse_query(q)
 
     if not filters:
@@ -149,26 +215,42 @@ def search_profiles(request):
             status=400
         )
 
-    qs = Profile.objects.all()
-    qs = apply_filters(qs, filters)
+    try:
+        qs = Profile.objects.all()
 
-    # sorting
-    sort_by = request.GET.get("sort_by")
-    order = request.GET.get("order")
-    qs = apply_sorting(qs, sort_by, order)
+        # apply parsed filters
+        qs = apply_filters(qs, filters)
 
-    # pagination
-    page = request.GET.get("page")
-    limit = request.GET.get("limit")
+        # -------------------------
+        # SORTING
+        # -------------------------
+        sort_by = request.GET.get("sort_by")
+        order = request.GET.get("order")
+        qs = apply_sorting(qs, sort_by, order)
 
-    qs, total, page, limit = paginate(qs, page, limit)
+        # -------------------------
+        # PAGINATION
+        # -------------------------
+        data, meta = paginate_queryset(qs, request)
 
-    serializer = ProfileListSerializer(qs, many=True)
+        serializer = ProfileListSerializer(data, many=True)
 
-    return Response({
-        "status": "success",
-        "page": page,
-        "limit": limit,
-        "total": total,
-        "data": serializer.data
-    })
+        links = build_links(
+            request,
+            meta["page"],
+            meta["limit"],
+            meta["total_pages"]
+        )
+
+        return Response({
+            "status": "success",
+            **meta,
+            "links": links,
+            "data": serializer.data
+        })
+
+    except ValueError:
+        return Response(
+            {"status": "error", "message": "Invalid query parameters"},
+            status=400
+        )
