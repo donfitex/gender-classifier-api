@@ -16,6 +16,7 @@ from .utils.versioning import check_version
 from .utils.pagination import paginate_queryset, build_links
 
 from .exports.csv_export import export_profiles_csv
+from users.permissions import admin_required
 
 
 # =========================
@@ -94,11 +95,9 @@ def profiles(request):
         # -------------------------
         # ROLE CHECK
         # -------------------------
-        if not hasattr(request, "user") or request.user.role != "admin":
-            return Response(
-                {"status": "error", "message": "Forbidden"},
-                status=403
-            )
+        error = admin_required(request)
+        if error:
+            return error
 
         serializer = ProfileCreateSerializer(data=request.data)
 
@@ -165,11 +164,9 @@ def profile_detail(request, id):
         # -------- DELETE (ADMIN ONLY) --------
         elif request.method == 'DELETE':
 
-            if not hasattr(request, "user") or request.user.role != "admin":
-                return Response(
-                    {"status": "error", "message": "Forbidden"},
-                    status=403
-                )
+            error = admin_required(request)
+            if error:
+                return error
 
             profile.delete()
             return Response(status=204)
