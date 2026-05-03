@@ -10,7 +10,9 @@ def generate_tokens(user):
 
     TOKENS[refresh_token] = {
         "user_id": str(user.id),
-        "expires": datetime.now(datetime.timezone.utc) + timedelta(minutes=5)
+        "access_token": access_token,
+        "access_expires": datetime.now(datetime.timezone.utc) + timedelta(minutes=3),
+        "refresh_expires": datetime.now(datetime.timezone.utc) + timedelta(minutes=5),
     }
 
     return access_token, refresh_token
