@@ -29,10 +29,9 @@ def profiles(request):
     # API VERSION CHECK
     # -------------------------
     if not check_version(request):
-        return Response(
-            {"status": "error", "message": "API version header required"},
-            status=400
-        )
+        error = check_version(request)
+        if error:
+            return error
 
     # =========================
     # GET → LIST PROFILES
@@ -146,10 +145,9 @@ def profile_detail(request, id):
     # API VERSION CHECK
     # -------------------------
     if not check_version(request):
-        return Response(
-            {"status": "error", "message": "API version header required"},
-            status=400
-        )
+        error = check_version(request)
+        if error:
+            return error
 
     try:
         profile = Profile.objects.get(id=id)
@@ -188,10 +186,13 @@ def search_profiles(request):
     # API VERSION CHECK
     # -------------------------
     if not check_version(request):
-        return Response(
-            {"status": "error", "message": "API version header required"},
-            status=400
-        )
+        error = check_version(request)
+        if error:
+            return error
+
+    # -------------------------
+    # QUERY PARSING
+    # -------------------------
 
     q = request.GET.get("q")
 
