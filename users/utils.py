@@ -3,7 +3,7 @@ import datetime
 from django.conf import settings
 
 # JWT utility functions for generating access and refresh tokens
-def generate_tokens(user):
+def web_generate_tokens(user):
     now = datetime.datetime.utcnow()
 
     access_payload = {
