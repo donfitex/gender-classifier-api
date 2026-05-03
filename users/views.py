@@ -16,21 +16,22 @@ from .services.github_service import (
 from .services.user_service import create_or_update_user
 from .services.token_services import generate_tokens
 
+from django.http import JsonResponse
+from .services.oauth_service import build_github_url
+
+STATE_STORE = set()
+
 #Github OAuth views
 def github_login(request):
-    client_id = os.getenv("GITHUB_CLIENT_ID")
-
     state = secrets.token_urlsafe(16)
-    request.session["oauth_state"] = state
+    code_challenge = request.GET.get("code_challenge")  # from CLI
+    STATE_STORE.add(state)
+    url = build_github_url(state, code_challenge)
 
-    url = (
-        "https://github.com/login/oauth/authorize"
-        f"?client_id={client_id}"
-        f"&scope=user"
-        f"&state={state}"
-    )
-
-    return redirect(url)
+    return JsonResponse({
+        "auth_url": url,
+        "state": state
+    })
 
 # API callback for GitHub OAuth (for mobile/third-party use)
 @api_view(['POST'])
@@ -84,7 +85,13 @@ def github_callback(request):
 def github_callback_web(request):
     code = request.GET.get("code")
     state = request.GET.get("state")
-
+    code_verifier = request.GET.get("code_challenge")
+    if state not in STATE_STORE:
+        return JsonResponse(
+            {"status": "error", "message": "Invalid state"},
+            status=400
+        )
+    
     # Validate state
     if state != request.session.get("oauth_state"):
         return Response(
@@ -100,6 +107,8 @@ def github_callback_web(request):
             "client_id": os.getenv("GITHUB_CLIENT_ID"),
             "client_secret": os.getenv("GITHUB_CLIENT_SECRET"),
             "code": code,
+            "code_verifier": code_verifier,
+
         },
         timeout=5
     ).json()
@@ -124,7 +133,8 @@ def github_callback_web(request):
         defaults={
             "username": user_res["login"],
             "avatar_url": user_res.get("avatar_url"),
-            "last_login_at": timezone.now()
+            "email": user_res.get("email"),
+            "last_login_at": timezone.now(),
         }
     )
 
