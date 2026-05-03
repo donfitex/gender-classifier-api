@@ -20,7 +20,7 @@ def export_profiles_csv(qs):
         writer.writerow([
             p.id, p.name, p.gender, p.gender_probability,
             p.age, p.age_group, p.country_id,
-            p.country_name, p.country_probability, p.created_at
+            p.country_name, p.country_probability, p.created_at.isoformat()
         ])
 
     return response
