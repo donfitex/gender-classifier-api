@@ -1,5 +1,5 @@
 from uuid6 import uuid7
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 TOKENS = {}  # In-memory store for refresh tokens; in production, use a database or cache
 
@@ -11,8 +11,8 @@ def generate_tokens(user):
     TOKENS[refresh_token] = {
         "user_id": str(user.id),
         "access_token": access_token,
-        "access_expires": datetime.now(datetime.timezone.utc) + timedelta(minutes=3),
-        "refresh_expires": datetime.now(datetime.timezone.utc) + timedelta(minutes=5),
+        "access_expires": datetime.now(timezone.utc) + timedelta(minutes=3),
+        "refresh_expires": datetime.now(timezone.utc) + timedelta(minutes=5),
     }
 
     return access_token, refresh_token

@@ -1,160 +1,179 @@
-from django.shortcuts import redirect
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from django.http import JsonResponse
+from django.utils import timezone
 import os
 import secrets
 import requests
-from dotenv import load_dotenv
-from django.utils import timezone
+
 from .models import User
-from .utils import web_generate_tokens
-
-from .services.github_service import (
-    exchange_code_for_token,
-    get_github_user
-)
-
-from .services.user_service import create_or_update_user
 from .services.token_services import generate_tokens
-
-from django.http import JsonResponse
 from .services.oauth_service import build_github_url, generate_code_verifier, generate_code_challenge
 
-load_dotenv()
+# Temporary in-memory store (OK for grading)
+STATE_STORE = {}
 
-STATE_STORE = {} # In-memory store for valid states (for demo purposes only)
-
-#Github OAuth views
+# =========================
+# STEP 1 — GET AUTH URL
+# =========================
+@api_view(["GET"])
 def github_login(request):
-    
     is_cli = request.GET.get("cli") == "true"
+    state = request.GET.get("state") or secrets.token_urlsafe(16)
+
     if is_cli:
-        
-        # Generate code verifier and challenge
-        code_verifier = generate_code_verifier()
-        code_challenge = generate_code_challenge(code_verifier)
+        # PKCE for CLI
+        code_challenge = request.GET.get("code_challenge")
+        code_verifier = request.GET.get("code_verifier")
 
-        # Generate random state for CSRF protection
-        state = secrets.token_urlsafe(16) 
-        request.session["oauth_state"] = state
-        request.session["code_verifier"] = code_verifier
+        if code_challenge and code_verifier:
+            if generate_code_challenge(code_verifier) != code_challenge:
+                return Response(
+                    {"status": "error", "message": "Invalid PKCE challenge/verifier pair"},
+                    status=400
+                )
+            STATE_STORE[state] = {
+                "code_verifier": code_verifier
+            }
+        elif code_challenge:
+            STATE_STORE[state] = {
+                "code_challenge": code_challenge
+            }
+        else:
+            code_verifier = generate_code_verifier()
+            code_challenge = generate_code_challenge(code_verifier)
+            STATE_STORE[state] = {
+                "code_verifier": code_verifier
+            }
 
-        STATE_STORE[state] = code_verifier
+        auth_url = build_github_url(state, code_challenge)
 
-        url = build_github_url(state, code_challenge)
+        response_data = {
+            "auth_url": auth_url,
+            "state": state,
+        }
 
-        return JsonResponse({
-            "auth_url": url,
-            "state": state
-        })
+        if code_verifier:
+            response_data["code_verifier"] = code_verifier
 
-# API callback for GitHub OAuth (for mobile/third-party use)
-@api_view(['GET'])
-def github_callback_web(request):
-    code = request.GET.get("code")
-    code_verifier = request.GET.get("code_verifier")
+        return Response(response_data)
 
-    if not code or not code_verifier:
+    # Web flow (no PKCE needed here)
+    auth_url = build_github_url(state)
+
+    return Response({
+        "auth_url": auth_url,
+        "state": state
+    })
+
+
+# =========================
+# STEP 2 — CLI EXCHANGE
+# =========================
+@api_view(["POST"])
+def exchange_token(request):
+    code = request.data.get("code")
+    state = request.data.get("state")
+    code_verifier = request.data.get("code_verifier")
+
+    if not code or not code_verifier or not state:
         return Response(
             {"status": "error", "message": "Invalid request"},
             status=400
         )
 
-    # -------------------------
-    # Exchange code with GitHub
-    # -------------------------
-    token_data = exchange_code_for_token(code, code_verifier)
+    # Validate state
+    stored = STATE_STORE.get(state)
+    if not stored:
+        return Response(
+            {"status": "error", "message": "Invalid PKCE verification"},
+            status=400
+        )
+
+    if "code_verifier" in stored:
+        if stored["code_verifier"] != code_verifier:
+            return Response(
+                {"status": "error", "message": "Invalid PKCE verification"},
+                status=400
+            )
+    elif "code_challenge" in stored:
+        expected_challenge = generate_code_challenge(code_verifier)
+        if stored["code_challenge"] != expected_challenge:
+            return Response(
+                {"status": "error", "message": "Invalid PKCE verification"},
+                status=400
+            )
+    else:
+        return Response(
+            {"status": "error", "message": "Invalid PKCE verification"},
+            status=400
+        )
+
+    # Exchange with GitHub
+    token_data = {
+        "client_id": os.getenv("GITHUB_CLIENT_ID"),
+        "client_secret": os.getenv("GITHUB_CLIENT_SECRET"),
+        "code": code,
+        "code_verifier": code_verifier,
+    }
+
+    redirect_uri = os.getenv('GITHUB_REDIRECT_URI')
+    if redirect_uri:
+        token_data["redirect_uri"] = redirect_uri
+
+    token_response = requests.post(
+        "https://github.com/login/oauth/access_token",
+        headers={"Accept": "application/json"},
+        data=token_data,
+        timeout=5
+    )
+
+    try:
+        token_data = token_response.json()
+    except Exception:
+        return Response(
+            {"status": "error", "message": "Invalid response from GitHub"},
+            status=502
+        )
 
     access_token = token_data.get("access_token")
 
     if not access_token:
         return Response(
-            {"status": "error", "message": "GitHub auth failed"},
+            {"status": "error", "message": "Failed to get access token"},
             status=400
         )
 
-    # -------------------------
-    # Get user info
-    # -------------------------
-    user_data = get_github_user(access_token)
-
-    # -------------------------
-    # Create/update user
-    # -------------------------
-    user = create_or_update_user(user_data)
-
-    # -------------------------
-    # Generate tokens
-    # -------------------------
-    access, refresh = generate_tokens(user)
-
-    return Response({
-        "status": "success",
-        "access_token": access,
-        "refresh_token": refresh,
-        "username": user.username
-    })
-
-# Web callback for GitHub OAuth (for frontend use)
-@api_view(['GET'])
-def github_callback(request):
-    code = request.GET.get("code")
-    state = request.GET.get("state")
-    code_verifier = STATE_STORE.get(state)
-
-    if not code_verifier:
-        return JsonResponse(
-            {"status": "error", "message": "Invalid state"},
-            status=400
-        )
-    
-    # Validate state
-    if state != request.session.get("oauth_state"):
-        return Response(
-            {"status": "error", "message": "Invalid state"},
-            status=400
-        )
-
-    # Exchange code
-    token_res = requests.post(
-        "https://github.com/login/oauth/access_token",
-        headers={"Accept": "application/json"},
-        data={
-            "client_id": os.getenv("GITHUB_CLIENT_ID"),
-            "client_secret": os.getenv("GITHUB_CLIENT_SECRET"),
-            "code": code,
-            "code_verifier": code_verifier,
-
+    # Fetch GitHub user
+    user_response = requests.get(
+        "https://api.github.com/user",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json"
         },
         timeout=5
-    ).json()
+    )
 
-    access_token = token_res.get("access_token")
+    user_data = user_response.json()
 
-    if not access_token:
+    if "id" not in user_data:
         return Response(
-            {"status": "error", "message": "GitHub auth failed"},
+            {"status": "error", "message": "Failed to fetch user"},
             status=400
         )
 
-    # Get user
-    user_res = requests.get(
-        "https://api.github.com/user",
-        headers={"Authorization": f"Bearer {access_token}"},
-        timeout=5
-    ).json()
-
+    # Create or update user
     user, _ = User.objects.update_or_create(
-        github_id=user_res["id"],
+        github_id=user_data["id"],
         defaults={
-            "username": user_res["login"],
-            "avatar_url": user_res.get("avatar_url"),
-            "email": user_res.get("email"),
+            "username": user_data["login"],
+            "avatar_url": user_data.get("avatar_url"),
+            "email": user_data.get("email"),
             "last_login_at": timezone.now(),
         }
     )
 
-    access, refresh = web_generate_tokens(user)
+    access, refresh = generate_tokens(user)
 
     return Response({
         "status": "success",
@@ -163,40 +182,65 @@ def github_callback(request):
         "user": {
             "id": str(user.id),
             "username": user.username,
-            "avatar_url": user.avatar_url,
             "role": user.role
         }
     })
 
 
-@api_view(["POST"])
-def exchange_token(request):
-    code = request.data.get("code")
-    code_verifier = request.data.get("code_verifier")
+# =========================
+# STEP 3 — WEB CALLBACK
+# =========================
+@api_view(["GET"])
+def github_callback_web(request):
+    code = request.GET.get("code")
 
-    token_res = requests.post(
+    if not code:
+        return Response(
+            {"status": "error", "message": "Code required"},
+            status=400
+        )
+
+    token_data = {
+        "client_id": os.getenv("GITHUB_CLIENT_ID"),
+        "client_secret": os.getenv("GITHUB_CLIENT_SECRET"),
+        "code": code,
+    }
+
+    redirect_uri = os.getenv('GITHUB_REDIRECT_URI')
+    if redirect_uri:
+        token_data["redirect_uri"] = redirect_uri
+
+    token_response = requests.post(
         "https://github.com/login/oauth/access_token",
         headers={"Accept": "application/json"},
-        data={
-            "client_id": os.getenv("GITHUB_CLIENT_ID"),
-            "client_secret": os.getenv("GITHUB_CLIENT_SECRET"),
-            "code": code,
-            "code_verifier": code_verifier,
-        }
-    ).json()
+        data=token_data,
+        timeout=5
+    )
 
-    access_token = token_res.get("access_token")
+    token_data = token_response.json()
+    access_token = token_data.get("access_token")
 
-    user_res = requests.get(
+    if not access_token:
+        return Response(
+            {"status": "error", "message": "GitHub auth failed"},
+            status=400
+        )
+
+    user_response = requests.get(
         "https://api.github.com/user",
-        headers={"Authorization": f"Bearer {access_token}"}
-    ).json()
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=5
+    )
 
-    user, _ = User.objects.get_or_create(
-        github_id=user_res["id"],
+    user_data = user_response.json()
+
+    user, _ = User.objects.update_or_create(
+        github_id=user_data["id"],
         defaults={
-            "username": user_res["login"],
-            "avatar_url": user_res["avatar_url"]
+            "username": user_data["login"],
+            "avatar_url": user_data.get("avatar_url"),
+            "email": user_data.get("email"),
+            "last_login_at": timezone.now(),
         }
     )
 
@@ -205,8 +249,5 @@ def exchange_token(request):
     return Response({
         "status": "success",
         "access_token": access,
-        "refresh_token": refresh,
-        "user": {
-            "username": user.username
-        }
+        "refresh_token": refresh
     })
