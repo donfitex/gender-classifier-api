@@ -31,9 +31,11 @@ class ProfileSerializer(serializers.ModelSerializer):
         ]
 
 class ProfileListSerializer(serializers.ModelSerializer):
+    country_name = serializers.CharField()
     class Meta:
         model = Profile
-        fields = ["id", "name", "gender", "age", "age_group", "country_id"]
+        fields = ["id", "name", "gender", "age", "age_group", "country_id", "country_name", "created_at"]
+        read_only_fields = ["id", "gender", "age", "age_group", "country_id", "country_name", "created_at"]
 
 class ProfileCreateSerializer(serializers.Serializer):
     name = serializers.CharField()
