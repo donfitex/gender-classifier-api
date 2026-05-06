@@ -5,9 +5,12 @@ from django.utils import timezone
 import os
 import secrets
 import requests
-
+import json
+import time
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from .services.token_services import TOKENS, generate_tokens
 from .models import User
-from .services.token_services import generate_tokens
 from .services.oauth_service import build_github_url, generate_code_verifier, generate_code_challenge
 
 # Temporary in-memory store (OK for grading)
@@ -173,12 +176,15 @@ def exchange_token(request):
         }
     )
 
-    access, refresh = generate_tokens(user)
+    access, refresh, access_expires, refresh_expires = generate_tokens(user)
 
     return Response({
         "status": "success",
         "access_token": access,
         "refresh_token": refresh,
+        "expires_in": 180,
+        "access_expires_in": 180,
+        "refresh_expires_in": 300,
         "user": {
             "id": str(user.id),
             "username": user.username,
@@ -244,10 +250,64 @@ def github_callback_web(request):
         }
     )
 
-    access, refresh = generate_tokens(user)
+    access, refresh, access_expires, refresh_expires = generate_tokens(user)
 
     return Response({
         "status": "success",
         "access_token": access,
-        "refresh_token": refresh
+        "refresh_token": refresh,
+        "expires_in": 180,
+        "access_expires_in": 180,
+        "refresh_expires_in": 300
+    })
+
+
+@csrf_exempt
+def refresh_token(request):
+    if request.method != "POST":
+        return JsonResponse(
+            {"status": "error", "message": "Method not allowed"},
+            status=405
+        )
+
+    try:
+        body = json.loads(request.body)
+        refresh_token = body.get("refresh_token")
+    except:
+        return JsonResponse(
+            {"status": "error", "message": "Invalid request"},
+            status=400
+        )
+
+    token_data = TOKENS.get(refresh_token)
+
+    if not token_data:
+        return JsonResponse(
+            {"status": "error", "message": "Invalid refresh token"},
+            status=401
+        )
+
+    # 🚨 CHECK EXPIRY
+    if time.time() > token_data["refresh_expires"]:
+        return JsonResponse(
+            {"status": "error", "message": "Refresh token expired"},
+            status=401
+        )
+
+    user_id = token_data["user_id"]
+
+    # ❗ invalidate old refresh token
+    del TOKENS[refresh_token]
+
+    user = User.objects.get(id=user_id)
+
+    access, refresh, access_expires, refresh_expires = generate_tokens(user)
+
+    return JsonResponse({
+        "status": "success",
+        "access_token": access,
+        "refresh_token": refresh,
+        "expires_in": 180,
+        "access_expires_in": 180,
+        "refresh_expires_in": 300
     })
