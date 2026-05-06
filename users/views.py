@@ -311,3 +311,34 @@ def refresh_token(request):
         "access_expires_in": 180,
         "refresh_expires_in": 300
     })
+
+@csrf_exempt
+def logout(request):
+    if request.method != "POST":
+        return JsonResponse(
+            {"status": "error", "message": "Method not allowed"},
+            status=405
+        )
+
+    try:
+        body = json.loads(request.body)
+        refresh_token = body.get("refresh_token")
+    except:
+        return JsonResponse(
+            {"status": "error", "message": "Invalid request"},
+            status=400
+        )
+
+    if not refresh_token or refresh_token not in TOKENS:
+        return JsonResponse(
+            {"status": "error", "message": "Invalid token"},
+            status=401
+        )
+
+    # ❗ Invalidate session
+    del TOKENS[refresh_token]
+
+    return JsonResponse({
+        "status": "success",
+        "message": "Logged out successfully"
+    })
